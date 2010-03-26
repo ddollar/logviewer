@@ -2,28 +2,40 @@ var sys  = require('sys');
 var http = require('http');
 var fs = require('fs');
 
-var clients = [];
+var clients = {};
 
 var server = http.createServer(function (request, response) {
-  sys.puts("CONNECTED!");
+  if (request.url == "/") {
+    var client_id = Date.now().toString();
+    clients[client_id] = [];
 
-  response.writeHead(200, {'Content-Type': 'text/plain'});
-  response.write("Log Server 0.1\n");
-  response.write("\n");
+    response.writeHead(200, {'Content-Type': 'text/plain'});
+    response.write(client_id);
+    response.close();
+  } else {
+    var client_id = request.url.slice(1);
+    var client    = clients[client_id];
 
-  request.connection.addListener("close", function() {
-    sys.puts("CLOSED!");
-  });
-  
-  clients.push(response);
+    if (client) {
+      response.writeHead(200, {});
+      while (client.length > 0) {
+        response.write(client.shift());
+      }
+      response.write("");
+      response.close();
+    } else {
+      response.writeHead(404, {});
+      response.close();
+    }
+  }
 });
 
 var monitor_file = function(filename) {
   var cmd = process.createChildProcess("tail", ["-f", filename]);
   cmd.addListener("output", function(data) {
-    clients.forEach(function(client) {
-      client.write(data);
-    });
+    for (var client_id in clients) {
+      clients[client_id].push(data);
+    }
   });
 };
 
